@@ -9,28 +9,32 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0d0e12;          /* Background utama: Hitam pekat yang dalam */
-  --panel: #16181d;       /* Card/Panel utama: Hitam sedikit terang biar pop-out */
-  --panel-alt: #1f232b;   /* Inner panel/Code block: Grey pekat berkarakter */
-  --border: #2e3440;      /* Border tegas buat pemisah elemen */
-  --border-soft: #232731; /* Border halus buat divider internal */
+  /* Background Utama Tetap Dark */
+  --bg: #0d0e12;          /* Background utama halaman: Hitam dalam */
   
-  --text: #f1f5f9;        /* Teks utama: Putih terang, sangat jelas & gak bikin mata lelah */
-  --text-dim: #94a3b8;    /* Teks sekunder/label */
-  --text-faint: #475569;  /* Disabled text / placeholder */
+  /* Panel & Card Serba Putih / Terang */
+  --panel: #ffffff;       /* Card/Panel utama: Putih bersih biar kontras banget */
+  --panel-alt: #f1f5f9;   /* Inner panel/Code block/Textarea di dalam card */
+  --border: #cbd5e1;      /* Border card tegas */
+  --border-soft: #e2e8f0; /* Border internal halus */
   
-  /* Aksentuasi Warna (Dibuat menyala/neon khas dark theme) */
-  --amber: #f59e0b;
-  --amber-dim: #3a2305;
-  --teal: #14b8a6;
-  --teal-dim: #073832;
-  --purple: #a855f7;
-  --purple-dim: #331557;
-  --blue: #3b82f6;
-  --blue-dim: #0e2a5e;
-  --slate: #94a3b8;
-  --slate-dim: #1e293b;
-  --red: #ef4444;
+  /* Teks Disesuaikan (Gelap) Agar Kebaca di Atas Card Putih */
+  --text: #0f172a;        /* Teks utama: Slate gelap tajam (sangat kontras) */
+  --text-dim: #475569;    /* Teks sekunder/label */
+  --text-faint: #94a3b8;  /* Placeholder / disabled state */
+  
+  /* Aksentuasi Warna (Dioptimalkan untuk Background Terang) */
+  --amber: #d97706;
+  --amber-dim: #fef3c7;
+  --teal: #0d9488;
+  --teal-dim: #ccfbf1;
+  --purple: #7c3aed;
+  --purple-dim: #ede9fe;
+  --blue: #2563eb;
+  --blue-dim: #dbeafe;
+  --slate: #64748b;
+  --slate-dim: #f1f5f9;
+  --red: #dc2626;
   
   --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 }
