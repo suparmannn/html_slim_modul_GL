@@ -44,7 +44,7 @@
   --active-soft-bg: #dbeafe;  /* Biru muda lembut */
   --active-soft-text: #1e40af;/* Biru tua pekat */
 }
-
+}
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
 body{
@@ -94,6 +94,10 @@ nav{
   gap:14px;
 }
 .nav-label{font-size:10px;letter-spacing:.08em;color:var(--text-faint);text-transform:uppercase;padding:0 4px;margin-bottom:6px;}
+.status-legend{display:flex;flex-direction:column;gap:6px;font-size:10px;color:var(--text-dim);padding:0 2px;}
+.status-legend div{display:flex;gap:7px;align-items:baseline;}
+.status-legend b{color:var(--amber);min-width:26px;flex:0 0 auto;font-size:10.5px;}
+.status-legend code{color:var(--slate);background:var(--panel-alt);padding:0 3px;border-radius:3px;}
 .scenario-list{display:flex;flex-direction:column;gap:3px;}
 .scenario-btn{
   text-align:left;
@@ -378,6 +382,16 @@ aside .log-head{
 
   <nav>
     <div>
+      <div class="nav-label">Status Transaksi</div>
+      <div class="status-legend">
+        <div><b>NULL</b><span>efektif langsung, tidak butuh persetujuan</span></div>
+        <div><b>A</b><span>efektif, sudah disetujui &amp; dikonfirmasi ulang teller</span></div>
+        <div><b>P</b><span>butuh persetujuan (pending)</span></div>
+        <div><b>R</b><span>ditolak</span></div>
+        <div><b>C</b><span>dibatalkan — cek <code>gl_tran_cancelation.approved_by</code>: NULL = batal belum efektif, terisi = sudah efektif</span></div>
+      </div>
+    </div>
+    <div>
       <div class="nav-label">Skenario</div>
       <div class="scenario-list" id="scenarioList"></div>
     </div>
@@ -452,6 +466,10 @@ const TABLE_META = {
   gl_tran_daily:   { label:'Jurnal GL Harian (Staging)', tone:'purple' },
   gl_tran:         { label:'Jurnal GL Historis', tone:'purple' },
   gl_tran_approval:{ label:'Antrian Approval GL', tone:'purple' },
+  gl_tran_cancelation:{ label:'Log Pembatalan Transaksi GL', tone:'purple' },
+  sv_tran_approval:{ label:'Antrian Approval Transaksi Tabungan', tone:'purple' },
+  dp_tran_approval:{ label:'Antrian Approval Transaksi Deposito', tone:'purple' },
+  ln_tran_approval:{ label:'Antrian Approval Transaksi Pinjaman', tone:'purple' },
   gl_temp:         { label:'Staging Perubahan Parameter (Maker-Checker)', tone:'purple' },
   jurnal_header:   { label:'Header Jurnal', tone:'purple' },
   jurnal_detail:   { label:'Detail Jurnal', tone:'purple' },
@@ -472,54 +490,99 @@ const DEFAULT_SCENARIOS = [
 {
   id:'setoran_tabungan', category:'Transaksi Nominatif',
   modul:'Modul Tabungan — Setoran Tunai',
-  desc:'Nasabah setor tunai lewat teller. Uang masuk (Kas Teller naik), utang bank ke nasabah bertambah (Tabungan naik).',
+  desc:'Debet GL Kas Teller, Kredit Rekening Tabungan. Tidak butuh approval → status NULL di semua tabel. Urutan tulis: sv_tran_daily → sv_tran → sv_mast, baru menyeberang ke gl_tran_daily → gl_tran → gl_mast. gl_tran_daily & gl_tran DITULIS BERSAMAAN saat transaksi terjadi — bukan gl_tran_daily dulu lalu "naik" ke gl_tran pas EOD.',
   steps:[
-    { table:'sv_tran_daily', action:'insert', values:{ slipnum:'TLR-000123', account_number:'1-01-00-00456-3', trancode:'101 - Setoran Tunai', amount:500000, descr:'Setoran tunai teller', effective_date:'2026-07-21' } },
+    { table:'sv_tran_daily', action:'insert', values:{ slipnum:'TLR-000123', account_number:'1-01-00-00456-3', trancode:'101 - Setoran Tunai', amount:500000, descr:'Setoran tunai teller', effective_date:'2026-07-21', status:null } },
+    { table:'sv_tran', action:'insert', values:{ sv_mast_id:'SV-000456', trancode:'101 - Setoran Tunai', slipno:'TLR-000123', amount:500000, effective_date:'2026-07-21', status:null, catatan:'dibuat bersamaan dgn sv_tran_daily, satu transaksi = 2 tabel' } },
+    { table:'sv_mast', action:'update', values:{ account_number:'1-01-00-00456-3', cbal_sebelum:4200000, cbal_sesudah:4700000, catatan:'saldo nasabah update real-time' } },
+    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'TLR-000123', leg_debit:'1101.001 Kas Teller — 500,000', leg_kredit:'2101.045 Tabungan Nasabah — 500,000', status:null } },
+    { table:'gl_tran', action:'insert', values:{ slipno:'TLR-000123', leg_debit:'1101.001 Kas Teller — 500,000', leg_kredit:'2101.045 Tabungan Nasabah — 500,000', status:null, catatan:'ditulis bersamaan dgn gl_tran_daily, bukan menyusul saat EOD' } },
     { table:'gl_mast', action:'update', values:{ coa_num:'1101.001', coa_name:'Kas Teller', arah:'Debit (+)', daily_debit:'+500,000', cbal_sebelum:12500000, cbal_sesudah:13000000 } },
-    { table:'gl_mast', action:'update', values:{ coa_num:'2101.045', coa_name:'Tabungan Nasabah', arah:'Kredit (+)', daily_credit:'+500,000', cbal_sebelum:4200000, cbal_sesudah:4700000 } },
-    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'TLR-000123', account_number:'1101.001 / 2101.045', amount:500000, status:'A', trancode:'101 - Setoran Tunai', effective_date:'2026-07-21' } }
+    { table:'gl_mast', action:'update', values:{ coa_num:'2101.045', coa_name:'Tabungan Nasabah', arah:'Kredit (+)', daily_credit:'+500,000', cbal_sebelum:4200000, cbal_sesudah:4700000 } }
   ]
 },
 {
   id:'penarikan_tabungan', category:'Transaksi Nominatif',
   modul:'Modul Tabungan — Penarikan Tunai',
-  desc:'Nasabah tarik tunai. Utang bank ke nasabah berkurang (Tabungan turun), uang keluar (Kas Teller turun).',
+  desc:'Kebalikan dari setoran: Debet Rek. Tabungan, Kredit GL Kas Teller. Masih dalam limit teller → status NULL, tidak butuh approval.',
   steps:[
-    { table:'sv_tran_daily', action:'insert', values:{ slipnum:'TLR-000201', account_number:'1-01-00-00456-3', trancode:'201 - Penarikan Tunai', amount:200000, descr:'Penarikan tunai teller', effective_date:'2026-07-21' } },
+    { table:'sv_tran_daily', action:'insert', values:{ slipnum:'TLR-000201', account_number:'1-01-00-00456-3', trancode:'201 - Penarikan Tunai', amount:200000, descr:'Penarikan tunai teller', effective_date:'2026-07-21', status:null } },
+    { table:'sv_tran', action:'insert', values:{ sv_mast_id:'SV-000456', trancode:'201 - Penarikan Tunai', slipno:'TLR-000201', amount:200000, effective_date:'2026-07-21', status:null } },
+    { table:'sv_mast', action:'update', values:{ account_number:'1-01-00-00456-3', cbal_sebelum:4700000, cbal_sesudah:4500000 } },
+    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'TLR-000201', leg_debit:'2101.045 Tabungan Nasabah — 200,000', leg_kredit:'1101.001 Kas Teller — 200,000', status:null } },
+    { table:'gl_tran', action:'insert', values:{ slipno:'TLR-000201', leg_debit:'2101.045 Tabungan Nasabah — 200,000', leg_kredit:'1101.001 Kas Teller — 200,000', status:null } },
     { table:'gl_mast', action:'update', values:{ coa_num:'2101.045', coa_name:'Tabungan Nasabah', arah:'Debit (-)', daily_debit:'+200,000', cbal_sebelum:4700000, cbal_sesudah:4500000 } },
-    { table:'gl_mast', action:'update', values:{ coa_num:'1101.001', coa_name:'Kas Teller', arah:'Kredit (-)', daily_credit:'+200,000', cbal_sebelum:13000000, cbal_sesudah:12800000 } },
-    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'TLR-000201', account_number:'2101.045 / 1101.001', amount:200000, status:'A', trancode:'201 - Penarikan Tunai', effective_date:'2026-07-21' } }
+    { table:'gl_mast', action:'update', values:{ coa_num:'1101.001', coa_name:'Kas Teller', arah:'Kredit (-)', daily_credit:'+200,000', cbal_sebelum:13000000, cbal_sesudah:12800000 } }
+  ]
+},
+{
+  id:'penarikan_approval', category:'Approval & Status Transaksi',
+  modul:'Modul Tabungan — Penarikan Tunai Melebihi Limit Teller',
+  desc:'Nominal melebihi limit approval teller → butuh persetujuan atasan. Tabel yang kena BERTAMBAH satu: sv_tran_daily → sv_tran_approval → sv_tran → sv_mast, semuanya berstatus P dulu, baru berubah ke A setelah disetujui DAN dikonfirmasi ulang oleh teller (bukan otomatis efektif begitu di-approve).',
+  steps:[
+    { table:'sv_tran_daily', action:'insert', values:{ slipnum:'TLR-000512', account_number:'1-01-00-00456-3', trancode:'201 - Penarikan Tunai', amount:75000000, descr:'Penarikan tunai besar', effective_date:'2026-07-21', status:'P' } },
+    { table:'sv_tran_approval', action:'insert', values:{ slipnum:'TLR-000512', sv_mast_id:'SV-000456', reason:'Melebihi limit teller harian', status:'P', requested_by:'Teller A', created_at:'2026-07-21 10:15' } },
+    { table:'sv_tran', action:'insert', values:{ sv_mast_id:'SV-000456', slipno:'TLR-000512', amount:75000000, status:'P', catatan:'ikut berstatus P, belum dianggap efektif' } },
+    { table:'sv_mast', action:'update', values:{ account_number:'1-01-00-00456-3', cbal_sebelum:80000000, cbal_ditahan:5000000, catatan:'saldo di-hold, belum final selama status P' } },
+    { table:'sv_tran_approval', action:'update', values:{ slipnum:'TLR-000512', status:'A', approved_by:'Kabag Operasi', approved_at:'2026-07-21 14:20' } },
+    { table:'sv_tran_daily', action:'update', values:{ slipnum:'TLR-000512', status:'A', catatan:'setelah disetujui atasan, diperlukan konfirmasi ulang teller sebelum benar-benar efektif' } },
+    { table:'sv_tran', action:'update', values:{ slipno:'TLR-000512', status:'A' } },
+    { table:'sv_mast', action:'update', values:{ account_number:'1-01-00-00456-3', cbal_sebelum:80000000, cbal_sesudah:5000000, catatan:'saldo final ter-update setelah status A' } },
+    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'TLR-000512', leg_debit:'2101.045 Tabungan Nasabah — 75,000,000', leg_kredit:'1101.001 Kas Teller — 75,000,000', status:'P → A', catatan:'sisi GL mengikuti pola status yang sama' } },
+    { table:'gl_tran', action:'insert', values:{ slipno:'TLR-000512', leg_debit:'2101.045 Tabungan Nasabah — 75,000,000', leg_kredit:'1101.001 Kas Teller — 75,000,000', status:'P → A' } }
+  ]
+},
+{
+  id:'pembatalan_transaksi', category:'Approval & Status Transaksi',
+  modul:'GL — Pembatalan Transaksi (Status C)',
+  desc:'Pembatalan itu SENDIRI butuh approval. Kolom gl_tran_cancelation.approved_by adalah penentunya: NULL = pembatalan belum efektif (transaksi asli masih hidup), terisi = pembatalan sudah efektif (saldo gl_mast dikembalikan).',
+  steps:[
+    { table:'gl_tran_daily', action:'update', values:{ slipnum:'GLM-000078', status:'C', catatan:'ditandai batal, tapi status efektifnya masih ditentukan oleh gl_tran_cancelation' } },
+    { table:'gl_tran', action:'update', values:{ slipno:'GLM-000078', status:'C' } },
+    { table:'gl_tran_cancelation', action:'insert', values:{ slipnum:'GLM-000078', reason:'Salah input nominal', approved_by:null, created_at:'2026-07-21 15:00', catatan:'approved_by NULL → pembatalan BELUM efektif, transaksi asli masih berlaku sampai ini di-approve' } },
+    { table:'gl_tran_cancelation', action:'update', values:{ slipnum:'GLM-000078', approved_by:'Kabag Operasi', approved_at:'2026-07-21 16:30', catatan:'approved_by terisi → pembatalan SUDAH efektif' } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'5301.002', coa_name:'Biaya ATK & Cetakan', cbal_sebelum:5700000, cbal_sesudah:4200000, catatan:'saldo dikembalikan seperti sebelum transaksi, setelah pembatalan efektif' } }
   ]
 },
 {
   id:'pembukaan_deposito', category:'Transaksi Nominatif',
   modul:'Modul Deposito — Pembukaan Rekening',
-  desc:'Nasabah buka deposito baru, dana didebet dari tabungan/kas, dicatat sebagai master deposito baru dengan tenor & bunga.',
+  desc:'Dana didebet dari tabungan/kas, dicatat sebagai rekening deposito baru. Urutan sama: dp_tran_daily → dp_tran → dp_mast (insert baru, bukan update, karena rekening deposito ini baru dibuka), baru ke sisi GL.',
   steps:[
-    { table:'dp_tran_daily', action:'insert', values:{ slipnum:'DPO-000045', account_number:'3-01-00-00089-7', trancode:'301 - Pembukaan Deposito', amount:10000000, descr:'Pembukaan deposito 3 bulan', effective_date:'2026-07-21' } },
-    { table:'gl_mast', action:'update', values:{ coa_num:'2101.045', coa_name:'Tabungan Nasabah (sumber dana)', arah:'Debit (-)', daily_debit:'+10,000,000', cbal_sebelum:4500000, cbal_sesudah:-5500000, catatan:'saldo ilustrasi, asumsi ada dana lain' } },
-    { table:'gl_mast', action:'update', values:{ coa_num:'2201.010', coa_name:'Deposito Berjangka', arah:'Kredit (+)', daily_credit:'+10,000,000', cbal_sebelum:850000000, cbal_sesudah:860000000 } },
-    { table:'dp_mast', action:'insert', values:{ account_number:'3-01-00-00089-7', open_date:'2026-07-21', due_date:'2026-10-21', term:'3 bulan', interest_rate:'5.25%', amount:10000000 } }
+    { table:'dp_tran_daily', action:'insert', values:{ slipnum:'DPO-000045', account_number:'3-01-00-00089-7', trancode:'301 - Pembukaan Deposito', amount:10000000, descr:'Pembukaan deposito 3 bulan', effective_date:'2026-07-21', status:null } },
+    { table:'dp_tran', action:'insert', values:{ slipno:'DPO-000045', trancode:'301 - Pembukaan Deposito', amount:10000000, effective_date:'2026-07-21', status:null } },
+    { table:'dp_mast', action:'insert', values:{ account_number:'3-01-00-00089-7', open_date:'2026-07-21', due_date:'2026-10-21', term:'3 bulan', interest_rate:'5.25%', amount:10000000 } },
+    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'DPO-000045', leg_debit:'2101.045 Tabungan Nasabah (sumber dana) — 10,000,000', leg_kredit:'2201.010 Deposito Berjangka — 10,000,000', status:null } },
+    { table:'gl_tran', action:'insert', values:{ slipno:'DPO-000045', leg_debit:'2101.045 Tabungan Nasabah — 10,000,000', leg_kredit:'2201.010 Deposito Berjangka — 10,000,000', status:null } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'2101.045', coa_name:'Tabungan Nasabah (sumber dana)', arah:'Debit (-)', daily_debit:'+10,000,000', catatan:'saldo ilustrasi, asumsi ada dana lain' } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'2201.010', coa_name:'Deposito Berjangka', arah:'Kredit (+)', daily_credit:'+10,000,000', cbal_sebelum:850000000, cbal_sesudah:860000000 } }
   ]
 },
 {
   id:'pencairan_pinjaman', category:'Transaksi Nominatif',
   modul:'Modul Pinjaman (KYD) — Pencairan Kredit',
-  desc:'Kredit dicairkan: KYD (aset bank) bertambah, dana cair ke rekening nasabah, provisi kredit diakui sebagai pendapatan ditangguhkan.',
+  desc:'ln_tran_daily → ln_tran → ln_mast (insert baru, rekening pinjaman baru dibuka), lalu 3 leg GL: KYD bertambah (debit), dana cair ke tabungan (kredit), provisi diakui (kredit).',
   steps:[
-    { table:'ln_tran_daily', action:'insert', values:{ slipnum:'LNC-000012', account_number:'5-01-00-00234-2', trancode:'501 - Pencairan Kredit', prcpl_amount:50000000, descr:'Pencairan kredit modal kerja', effective_date:'2026-07-21' } },
+    { table:'ln_tran_daily', action:'insert', values:{ slipnum:'LNC-000012', account_number:'5-01-00-00234-2', trancode:'501 - Pencairan Kredit', prcpl_amount:50000000, descr:'Pencairan kredit modal kerja', effective_date:'2026-07-21', status:null } },
+    { table:'ln_tran', action:'insert', values:{ slipno:'LNC-000012', trancode:'501 - Pencairan Kredit', prcpl_amount:50000000, effective_date:'2026-07-21', status:null } },
+    { table:'ln_mast', action:'insert', values:{ account_number:'5-01-00-00234-2', plafond:50000000, term:'24 bulan', interest_rate:'14% p.a.', due_date:'2028-07-21', kolektibilitas:'1 - Lancar' } },
+    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'LNC-000012', leg_1:'Debit 1301.020 KYD — 50,000,000', leg_2:'Kredit 2101.045 Tabungan — 49,250,000', leg_3:'Kredit 2301.005 Provisi KYD — 750,000', status:null } },
+    { table:'gl_tran', action:'insert', values:{ slipno:'LNC-000012', leg_1:'Debit 1301.020 KYD — 50,000,000', leg_2:'Kredit 2101.045 Tabungan — 49,250,000', leg_3:'Kredit 2301.005 Provisi KYD — 750,000', status:null } },
     { table:'gl_mast', action:'update', values:{ coa_num:'1301.020', coa_name:'Pinjaman yang Diberikan (KYD)', arah:'Debit (+)', daily_debit:'+50,000,000', cbal_sebelum:2100000000, cbal_sesudah:2150000000 } },
     { table:'gl_mast', action:'update', values:{ coa_num:'2101.045', coa_name:'Tabungan Nasabah (pencairan)', arah:'Kredit (+)', daily_credit:'+49,250,000', cbal_sebelum:4500000, cbal_sesudah:53750000 } },
-    { table:'gl_mast', action:'update', values:{ coa_num:'2301.005', coa_name:'Provisi KYD (Pendapatan Ditangguhkan)', arah:'Kredit (+)', daily_credit:'+750,000', cbal_sebelum:15000000, cbal_sesudah:15750000 } },
-    { table:'ln_mast', action:'insert', values:{ account_number:'5-01-00-00234-2', plafond:50000000, term:'24 bulan', interest_rate:'14% p.a.', due_date:'2028-07-21', kolektibilitas:'1 - Lancar' } }
+    { table:'gl_mast', action:'update', values:{ coa_num:'2301.005', coa_name:'Provisi KYD (Pendapatan Ditangguhkan)', arah:'Kredit (+)', daily_credit:'+750,000', cbal_sebelum:15000000, cbal_sesudah:15750000 } }
   ]
 },
 {
   id:'angsuran_pinjaman', category:'Transaksi Nominatif',
   modul:'Modul Pinjaman (KYD) — Pembayaran Angsuran',
-  desc:'Nasabah bayar angsuran (pokok + bunga). Pokok pinjaman berkurang, akrual bunga (PBAD) yang sudah diakui sebelumnya kini dilunasi.',
+  desc:'ln_tran_daily → ln_tran → ln_mast (update, outstanding berkurang — bukan insert karena rekening sudah ada), lalu 3 leg GL: tabungan berkurang, pokok pinjaman berkurang, PBAD terbayar.',
   steps:[
-    { table:'ln_tran_daily', action:'insert', values:{ slipnum:'LNA-000340', account_number:'5-01-00-00234-2', trancode:'510 - Angsuran', prcpl_amount:2000000, int_amount:583333, fine_amount:0, descr:'Angsuran bulan ke-1', effective_date:'2026-07-21' } },
+    { table:'ln_tran_daily', action:'insert', values:{ slipnum:'LNA-000340', account_number:'5-01-00-00234-2', trancode:'510 - Angsuran', prcpl_amount:2000000, int_amount:583333, fine_amount:0, descr:'Angsuran bulan ke-1', effective_date:'2026-07-21', status:null } },
+    { table:'ln_tran', action:'insert', values:{ slipno:'LNA-000340', trancode:'510 - Angsuran', prcpl_amount:2000000, int_amount:583333, status:null } },
+    { table:'ln_mast', action:'update', values:{ account_number:'5-01-00-00234-2', outstanding_sebelum:50000000, outstanding_sesudah:48000000 } },
+    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'LNA-000340', leg_1:'Debit 2101.045 Tabungan — 2,583,333', leg_2:'Kredit 1301.020 KYD — 2,000,000', leg_3:'Kredit 1302.001 PBAD KYD — 583,333', status:null } },
+    { table:'gl_tran', action:'insert', values:{ slipno:'LNA-000340', leg_1:'Debit 2101.045 Tabungan — 2,583,333', leg_2:'Kredit 1301.020 KYD — 2,000,000', leg_3:'Kredit 1302.001 PBAD KYD — 583,333', status:null } },
     { table:'gl_mast', action:'update', values:{ coa_num:'2101.045', coa_name:'Tabungan Nasabah', arah:'Debit (-)', daily_debit:'+2,583,333', cbal_sebelum:53750000, cbal_sesudah:51166667 } },
     { table:'gl_mast', action:'update', values:{ coa_num:'1301.020', coa_name:'Pinjaman yang Diberikan (KYD)', arah:'Kredit (-)', daily_credit:'+2,000,000', cbal_sebelum:2150000000, cbal_sesudah:2148000000 } },
     { table:'gl_mast', action:'update', values:{ coa_num:'1302.001', coa_name:'PBAD KYD (Piutang Bunga)', arah:'Kredit (-)', daily_credit:'+583,333', cbal_sebelum:1750000, cbal_sesudah:1166667 } }
@@ -528,23 +591,25 @@ const DEFAULT_SCENARIOS = [
 {
   id:'eod_akrual_tabungan', category:'End of Day',
   modul:'EOD — Akrual Bunga Tabungan',
-  desc:'Proses batch akhir hari: hitung bunga harian tabungan, jurnal otomatis, lalu pindahkan transaksi harian ke tabel historis.',
+  desc:'Akrual bukan proses "pindah data" — ini transaksi otomatis biasa: langsung tercatat di gl_tran_daily & gl_tran (status NULL, sama seperti transaksi efektif lainnya), lalu update gl_mast. Peran EOD yang SEBENARNYA cuma me-reset counter daily_debit/daily_credit di gl_mast untuk hari berikutnya.',
   steps:[
+    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'EOD-20260721-014', leg_debit:'5201.001 Biaya Bunga Tabungan — 38,500', leg_kredit:'2102.001 Utang Bunga Tabungan — 38,500', status:null, catatan:'transaksi batch otomatis, statusnya NULL seperti transaksi efektif biasa' } },
+    { table:'gl_tran', action:'insert', values:{ slipno:'EOD-20260721-014', leg_debit:'5201.001 Biaya Bunga Tabungan — 38,500', leg_kredit:'2102.001 Utang Bunga Tabungan — 38,500', status:null, catatan:'ditulis bersamaan dgn gl_tran_daily' } },
     { table:'gl_mast', action:'update', values:{ coa_num:'5201.001', coa_name:'Biaya Bunga Tabungan', arah:'Debit (+)', daily_debit:'+38,500', cbal_sebelum:1250000, cbal_sesudah:1288500 } },
     { table:'gl_mast', action:'update', values:{ coa_num:'2102.001', coa_name:'Utang Bunga Tabungan', arah:'Kredit (+)', daily_credit:'+38,500', cbal_sebelum:980000, cbal_sesudah:1018500 } },
-    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'EOD-20260721-014', account_number:'5201.001 / 2102.001', amount:38500, status:'A', trancode:'901 - Akrual Bunga Tabungan', catatan:'dibuat otomatis oleh batch EOD' } },
-    { table:'gl_tran', action:'insert', values:{ slipno:'EOD-20260721-014', transaction_date:'2026-07-21', amount:38500, descr:'Akrual bunga tabungan (auto)', catatan:'dipindahkan dari gl_tran_daily saat proses EOD' } }
+    { table:'gl_mast', action:'update', values:{ coa_num:'(semua CoA)', catatan:'LANGKAH TERAKHIR EOD: daily_debit & daily_credit di-reset ke 0 untuk hari berikutnya — BUKAN memindahkan data ke tabel lain', daily_debit:0, daily_credit:0, accum_debit:'tetap terakumulasi', cbal:'tetap terakumulasi' } }
   ]
 },
 {
   id:'transaksi_umum_manual', category:'Transaksi Manual',
   modul:'Modul GL Manual (GLTR0001) — Transaksi Umum',
-  desc:'Posting jurnal manual yang tidak terkait modul nominatif, misal pembelian ATK. Jika melebihi limit user, masuk antrian approval.',
+  desc:'Posting jurnal manual (misal beli ATK). Urutan sesuai kode: gl_tran_daily → gl_tran_approval (kalau melebihi limit) → gl_tran → gl_mast. gl_tran_daily & gl_tran sama-sama berstatus P sampai disetujui.',
   steps:[
-    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'GLM-000078', account_number:'5301.002 / 1101.002', amount:1500000, status:'P', trancode:'701 - Transaksi Umum', descr:'Pembelian ATK Kantor', effective_date:'2026-07-21' } },
+    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'GLM-000078', leg_debit:'5301.002 Biaya ATK & Cetakan — 1,500,000', leg_kredit:'1101.002 Kas Besar — 1,500,000', status:'P', trancode:'701 - Transaksi Umum', descr:'Pembelian ATK Kantor', effective_date:'2026-07-21' } },
+    { table:'gl_tran_approval', action:'insert', values:{ slipnum:'GLM-000078', status:'P', reason:'Melebihi limit approval user teller', transaction_date:'2026-07-21', catatan:'menunggu approval supervisor via GLTR0003' } },
+    { table:'gl_tran', action:'insert', values:{ slipno:'GLM-000078', leg_debit:'5301.002 Biaya ATK & Cetakan — 1,500,000', leg_kredit:'1101.002 Kas Besar — 1,500,000', status:'P' } },
     { table:'gl_mast', action:'update', values:{ coa_num:'5301.002', coa_name:'Biaya ATK & Cetakan', arah:'Debit (+)', daily_debit:'+1,500,000', cbal_sebelum:4200000, cbal_sesudah:5700000 } },
-    { table:'gl_mast', action:'update', values:{ coa_num:'1101.002', coa_name:'Kas Besar', arah:'Kredit (-)', daily_credit:'+1,500,000', cbal_sebelum:85000000, cbal_sesudah:83500000 } },
-    { table:'gl_tran_approval', action:'insert', values:{ slipnum:'GLM-000078', status:'P (Pending)', reason:'Melebihi limit approval user teller', transaction_date:'2026-07-21', catatan:'menunggu approval supervisor via GLTR0003' } }
+    { table:'gl_mast', action:'update', values:{ coa_num:'1101.002', coa_name:'Kas Besar', arah:'Kredit (-)', daily_credit:'+1,500,000', cbal_sebelum:85000000, cbal_sesudah:83500000 } }
   ]
 },
 {
@@ -553,6 +618,8 @@ const DEFAULT_SCENARIOS = [
   desc:'Debitur kesulitan bayar, kolektibilitas & plafond diubah. Bank mengakui kerugian restrukturisasi (selisih outstanding vs NPV), sisa provisi diakui pendapatan, dan PPAP disesuaikan (POJK 1/2024).',
   steps:[
     { table:'ln_mast_restruk', action:'insert', values:{ ln_mast_id:'LN-000234', account_number:'5-01-00-00234-2', restruk_dt:'2026-07-21', outstanding_saat_restruk:48000000, plafond_baru:48000000, npv:42000000, restruk_loss:6000000, addendum:null, collect_id_baru:'3 - Kurang Lancar', reason:'Debitur turun omset usaha' } },
+    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'LNR-000003', leg_1:'Debit 6401.010 Beban Kerugian Restruk — 6,000,000', leg_2:'Kredit 1303.002 Penyisihan Kerugian Restruk — 6,000,000', leg_3:'Debit 1301.030 KYD Provisi — 900,000', leg_4:'Kredit 5301.010 Pendapatan Bunga Provisi — 900,000', status:null } },
+    { table:'gl_tran', action:'insert', values:{ slipno:'LNR-000003', catatan:'jurnal restrukturisasi ditulis bersamaan dgn gl_tran_daily', status:null } },
     { table:'gl_mast', action:'update', values:{ coa_num:'6401.010', coa_name:'Beban Kerugian Restrukturisasi', arah:'Debit (+)', daily_debit:'+6,000,000', catatan:'selisih outstanding vs NPV' } },
     { table:'gl_mast', action:'update', values:{ coa_num:'1303.002', coa_name:'Penyisihan Kerugian Restrukturisasi (Pengurang Aset)', arah:'Kredit (+)', daily_credit:'+6,000,000' } },
     { table:'gl_mast', action:'update', values:{ coa_num:'1301.030', coa_name:'KYD Provisi (sisa belum diamortisasi)', arah:'Debit (-)', daily_debit:'+900,000' } },
@@ -563,7 +630,7 @@ const DEFAULT_SCENARIOS = [
 {
   id:'addendum_pinjaman', category:'Restrukturisasi & Penyelesaian Kredit',
   modul:'Modul Pinjaman (KYD) — Addendum Perjanjian Kredit',
-  desc:'Perubahan tenor/suku bunga tanpa debitur bermasalah (bukan restruk penuh). Tersimpan di tabel yang sama (ln_mast_restruk) tapi kolom addendum diisi, dan tidak ada jurnal kerugian — hanya penyesuaian jadwal amortisasi provisi.',
+  desc:'Perubahan tenor/suku bunga tanpa debitur bermasalah (bukan restruk penuh). Tersimpan di tabel yang sama (ln_mast_restruk) tapi kolom addendum diisi, dan TIDAK ada jurnal kerugian / tidak menyentuh gl_tran sama sekali — hanya penyesuaian jadwal amortisasi provisi.',
   steps:[
     { table:'ln_mast_restruk', action:'insert', values:{ ln_mast_id:'LN-000556', account_number:'5-01-00-00556-9', restruk_dt:'2026-07-21', addendum:1, plafond_baru:'tetap', interest_rate_eff:'13% (dari 14%)', reason:'Perpanjangan tenor atas permintaan nasabah', restruk_loss:0 } },
     { table:'ln_mast_amor', action:'update', values:{ ln_mast_id:'LN-000556', next_amor_date:'2026-08-21', remain:2400000, catatan:'jadwal amortisasi provisi disesuaikan dengan tenor baru, tanpa jurnal kerugian' } }
@@ -572,12 +639,15 @@ const DEFAULT_SCENARIOS = [
 {
   id:'hapus_buku_pokok', category:'Restrukturisasi & Penyelesaian Kredit',
   modul:'Modul Pinjaman (KYD) — Hapus Buku Pokok (Write-off)',
-  desc:'Pokok kredit macet (kolektibilitas 5) dihapusbukukan dari neraca aktif menggunakan cadangan PPAP Khusus yang sudah dibentuk. Tetap dicatat administratif untuk potensi tagih kembali.',
+  desc:'Pokok kredit macet (kolektibilitas 5) dihapusbukukan dari neraca aktif memakai cadangan PPAP Khusus. ln_tran_daily → ln_tran → ln_mast, lalu gl_tran_daily → gl_tran → gl_mast seperti transaksi biasa. Tetap dicatat administratif (9xxxxx) untuk potensi tagih kembali.',
   steps:[
-    { table:'ln_tran_daily', action:'insert', values:{ slipnum:'LNW-000009', account_number:'5-01-00-00998-4', trancode:'590 - Hapus Buku Pokok', prcpl_amount:35000000, descr:'Hapus buku pokok kredit macet (kolek 5)', effective_date:'2026-07-21' } },
+    { table:'ln_tran_daily', action:'insert', values:{ slipnum:'LNW-000009', account_number:'5-01-00-00998-4', trancode:'590 - Hapus Buku Pokok', prcpl_amount:35000000, descr:'Hapus buku pokok kredit macet (kolek 5)', effective_date:'2026-07-21', status:null } },
+    { table:'ln_tran', action:'insert', values:{ slipno:'LNW-000009', trancode:'590 - Hapus Buku Pokok', prcpl_amount:35000000, status:null } },
+    { table:'ln_mast', action:'update', values:{ account_number:'5-01-00-00998-4', status:'Hapus Buku', cbal:0, kolektibilitas:'5 - Macet' } },
+    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'LNW-000009', leg_1:'Debit 1304.005 PPAP Khusus — 35,000,000', leg_2:'Kredit 1301.020 KYD Pokok — 35,000,000', leg_3:'Debit 9101.001 Memorandum Hapus Buku — 35,000,000 (off balance)', status:null } },
+    { table:'gl_tran', action:'insert', values:{ slipno:'LNW-000009', status:null } },
     { table:'gl_mast', action:'update', values:{ coa_num:'1304.005', coa_name:'PPAP Khusus', arah:'Debit (-)', daily_debit:'+35,000,000', catatan:'cadangan PPAP dipakai' } },
     { table:'gl_mast', action:'update', values:{ coa_num:'1301.020', coa_name:'Pinjaman yang Diberikan (KYD) — Pokok', arah:'Kredit (-)', daily_credit:'+35,000,000', catatan:'outstanding pokok jadi 0 di neraca aktif' } },
-    { table:'ln_mast', action:'update', values:{ account_number:'5-01-00-00998-4', status:'Hapus Buku', cbal:0, kolektibilitas:'5 - Macet' } },
     { table:'gl_mast', action:'update', values:{ coa_num:'9101.001', coa_name:'Memorandum Kredit Hapus Buku (Off Balance Sheet)', arah:'Debit (+)', daily_debit:'+35,000,000', catatan:'pencatatan administratif untuk potensi tagih kembali' } }
   ]
 },
@@ -586,7 +656,10 @@ const DEFAULT_SCENARIOS = [
   modul:'Modul Pinjaman (KYD) — Hapus Buku Tagihan Bunga (PBAD)',
   desc:'Piutang bunga (PBAD) yang sudah terlanjur diakui sebagai pendapatan tapi tidak tertagih, dihapusbukukan agar pendapatan tidak overstate.',
   steps:[
-    { table:'ln_tran_daily', action:'insert', values:{ slipnum:'LNW-000010', account_number:'5-01-00-00998-4', trancode:'591 - Hapus Buku Tagihan Bunga', int_amount:4200000, descr:'Hapus buku PBAD kredit macet', effective_date:'2026-07-21' } },
+    { table:'ln_tran_daily', action:'insert', values:{ slipnum:'LNW-000010', account_number:'5-01-00-00998-4', trancode:'591 - Hapus Buku Tagihan Bunga', int_amount:4200000, descr:'Hapus buku PBAD kredit macet', effective_date:'2026-07-21', status:null } },
+    { table:'ln_tran', action:'insert', values:{ slipno:'LNW-000010', trancode:'591 - Hapus Buku Tagihan Bunga', int_amount:4200000, status:null } },
+    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'LNW-000010', leg_1:'Debit 5301.001 Pendapatan Bunga (koreksi) — 4,200,000', leg_2:'Kredit 1302.001 PBAD KYD — 4,200,000', leg_3:'Debit 9102.001 Memorandum Hapus Buku Bunga — 4,200,000', status:null } },
+    { table:'gl_tran', action:'insert', values:{ slipno:'LNW-000010', status:null } },
     { table:'gl_mast', action:'update', values:{ coa_num:'5301.001', coa_name:'Pendapatan Bunga KYD Kontraktual (koreksi)', arah:'Debit (-)', daily_debit:'+4,200,000', catatan:'reverse pendapatan bunga yang sudah terlanjur diakui' } },
     { table:'gl_mast', action:'update', values:{ coa_num:'1302.001', coa_name:'PBAD KYD (Piutang Bunga)', arah:'Kredit (-)', daily_credit:'+4,200,000', catatan:'piutang bunga dihapus dari neraca' } },
     { table:'gl_mast', action:'update', values:{ coa_num:'9102.001', coa_name:'Memorandum Tagihan Bunga Hapus Buku (Off Balance Sheet)', arah:'Debit (+)', daily_debit:'+4,200,000', catatan:'dicatat administratif untuk potensi tagih kembali' } }
@@ -595,11 +668,12 @@ const DEFAULT_SCENARIOS = [
 {
   id:'pbad_akrual', category:'End of Day',
   modul:'EOD — Akrual Bunga Pinjaman (PBAD, Kolektibilitas Lancar)',
-  desc:'Bank mengakui pendapatan bunga kredit lancar setiap hari meski nasabah belum bayar, dicatat sebagai piutang (PBAD = Pendapatan Bunga yang Akan Diterima).',
+  desc:'Sama seperti akrual tabungan: ini transaksi batch biasa (status NULL), langsung ke gl_tran_daily & gl_tran bersamaan, bukan proses pindah data.',
   steps:[
+    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'EOD-20260721-021', leg_debit:'1302.001 PBAD KYD — 583,333', leg_kredit:'5301.001 Pendapatan Bunga KYD — 583,333', status:null, catatan:'transaksi batch otomatis per rekening pinjaman lancar' } },
+    { table:'gl_tran', action:'insert', values:{ slipno:'EOD-20260721-021', leg_debit:'1302.001 PBAD KYD — 583,333', leg_kredit:'5301.001 Pendapatan Bunga KYD — 583,333', status:null } },
     { table:'gl_mast', action:'update', values:{ coa_num:'1302.001', coa_name:'PBAD KYD (Piutang Bunga)', arah:'Debit (+)', daily_debit:'+583,333', cbal_sebelum:1166667, cbal_sesudah:1750000 } },
-    { table:'gl_mast', action:'update', values:{ coa_num:'5301.001', coa_name:'Pendapatan Bunga KYD Kontraktual', arah:'Kredit (+)', daily_credit:'+583,333', cbal_sebelum:120000000, cbal_sesudah:120583333 } },
-    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'EOD-20260721-021', account_number:'1302.001 / 5301.001', amount:583333, trancode:'902 - Akrual Bunga Pinjaman', catatan:'dibuat otomatis oleh batch EOD, per rekening pinjaman lancar' } }
+    { table:'gl_mast', action:'update', values:{ coa_num:'5301.001', coa_name:'Pendapatan Bunga KYD Kontraktual', arah:'Kredit (+)', daily_credit:'+583,333', cbal_sebelum:120000000, cbal_sesudah:120583333 } }
   ]
 },
 {
