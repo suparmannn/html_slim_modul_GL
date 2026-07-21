@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GL Data Flow Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0b0f;
+  --panel:#101218;
+  --panel-alt:#0c0e13;
+  --border:#1e222b;
+  --border-soft:#181b22;
+  --text:#c9cdd6;
+  --text-dim:#7a8090;
+  --text-faint:#454b57;
+  --amber:#d9a441;
+  --amber-dim:#7a5f2e;
+  --teal:#4fb3a9;
+  --teal-dim:#2c5c56;
+  --purple:#9b7fd4;
+  --purple-dim:#584a7a;
+  --blue:#5b8dd9;
+  --blue-dim:#334f74;
+  --slate:#8b93a7;
+  --slate-dim:#4b515e;
+  --red:#c96a6a;
+  --mono:'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--mono);
+  font-size:12.5px;
+  line-height:1.5;
+  min-height:100vh;
+}
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+
+.app{
+  display:grid;
+  grid-template-columns:206px 1fr 272px;
+  grid-template-rows:auto 1fr;
+  gap:1px;
+  background:var(--border-soft);
+  min-height:100vh;
+}
+.app > *{background:var(--bg);}
+
+header{
+  grid-column:1 / 4;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:10px 16px;
+  border-bottom:1px solid var(--border);
+}
+header .brand{display:flex;align-items:baseline;gap:9px;}
+header .brand .dot{width:7px;height:7px;border-radius:50%;background:var(--teal);display:inline-block;}
+header h1{font-size:13px;font-weight:600;margin:0;letter-spacing:.2px;color:var(--text);}
+header .sub{font-size:11px;color:var(--text-dim);}
+header .legend{display:flex;gap:14px;font-size:10.5px;color:var(--text-dim);}
+header .legend span{display:inline-flex;align-items:center;gap:5px;}
+header .legend i{width:7px;height:7px;border-radius:2px;display:inline-block;}
+
+nav{
+  padding:14px 10px;
+  overflow-y:auto;
+  border-right:1px solid var(--border);
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+.nav-label{font-size:10px;letter-spacing:.08em;color:var(--text-faint);text-transform:uppercase;padding:0 4px;margin-bottom:6px;}
+.scenario-list{display:flex;flex-direction:column;gap:3px;}
+.scenario-btn{
+  text-align:left;
+  background:transparent;
+  border:1px solid transparent;
+  border-radius:6px;
+  color:var(--text-dim);
+  padding:7px 9px;
+  font-family:var(--mono);
+  font-size:11.5px;
+  cursor:pointer;
+  transition:border-color .15s, color .15s, background .15s;
+  line-height:1.35;
+}
+.scenario-btn:hover{color:var(--text);background:var(--panel);}
+.scenario-btn.active{
+  color:var(--amber);
+  border-color:var(--amber-dim);
+  background:var(--panel);
+}
+.scenario-btn .cat{display:block;font-size:9.5px;color:var(--text-faint);margin-top:2px;}
+.scenario-btn.active .cat{color:var(--amber-dim);}
+
+.json-toggle{
+  margin-top:auto;
+  border-top:1px solid var(--border);
+  padding-top:10px;
+}
+.json-toggle button{
+  width:100%;
+  background:transparent;
+  border:1px solid var(--border);
+  color:var(--text-dim);
+  border-radius:6px;
+  padding:7px 8px;
+  font-family:var(--mono);
+  font-size:11px;
+  cursor:pointer;
+}
+.json-toggle button:hover{color:var(--text);border-color:var(--purple-dim);}
+.json-panel{display:none;margin-top:8px;flex-direction:column;gap:6px;}
+.json-panel.open{display:flex;}
+.json-panel textarea{
+  width:100%;
+  height:150px;
+  background:var(--panel-alt);
+  border:1px solid var(--border);
+  border-radius:6px;
+  color:var(--text);
+  font-family:var(--mono);
+  font-size:10.5px;
+  padding:8px;
+  resize:vertical;
+}
+.json-panel .row{display:flex;gap:6px;}
+.json-panel .row button{flex:1;padding:6px 4px;font-size:10.5px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;}
+.json-panel .row button:hover{color:var(--text);border-color:var(--teal-dim);}
+.json-panel .err{color:var(--red);font-size:10px;min-height:14px;}
+.json-panel .ok{color:var(--teal);font-size:10px;min-height:14px;}
+
+main{
+  position:relative;
+  padding:20px 22px 12px 22px;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+}
+.scenario-head{margin-bottom:14px;}
+.scenario-head .title{font-size:13px;color:var(--amber);font-weight:600;}
+.scenario-head .desc{font-size:11px;color:var(--text-dim);margin-top:3px;}
+
+#diagram{
+  position:relative;
+  flex:1;
+  min-height:340px;
+  display:flex;
+  gap:0;
+}
+#linesSvg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;}
+
+.module-col{
+  flex:0 0 168px;
+  display:flex;
+  align-items:center;
+  z-index:2;
+}
+.module-node{
+  border:1px solid var(--amber-dim);
+  border-radius:8px;
+  background:var(--panel);
+  padding:14px 12px;
+  width:100%;
+}
+.module-node .k{font-size:9px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.07em;}
+.module-node .name{font-size:12px;color:var(--amber);margin-top:5px;font-weight:600;line-height:1.4;}
+.module-node .fire{
+  margin-top:10px;
+  font-size:10px;
+  color:var(--text-faint);
+  border-top:1px dashed var(--border);
+  padding-top:8px;
+}
+.module-node.pulse{border-color:var(--amber);}
+
+.tables-col{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-around;
+  gap:10px;
+  padding-left:56px;
+  z-index:2;
+  min-width:0;
+}
+.table-node{
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:var(--panel);
+  padding:10px 12px;
+  transition:border-color .25s;
+  min-width:0;
+}
+.table-node .head{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.table-node .head .name{font-size:12px;font-weight:600;}
+.table-node .head .friendly{font-size:9.5px;color:var(--text-faint);margin-top:2px;}
+.table-node .badge{
+  font-size:9px;
+  padding:2px 6px;
+  border-radius:4px;
+  border:1px solid var(--border);
+  color:var(--text-dim);
+  white-space:nowrap;
+}
+.table-node.tone-teal{border-left:2px solid var(--teal-dim);}
+.table-node.tone-blue{border-left:2px solid var(--blue-dim);}
+.table-node.tone-purple{border-left:2px solid var(--purple-dim);}
+.table-node.tone-slate{border-left:2px dashed var(--slate-dim);}
+.table-node.tone-teal .head .name{color:var(--teal);}
+.table-node.tone-blue .head .name{color:var(--blue);}
+.table-node.tone-purple .head .name{color:var(--purple);}
+.table-node.tone-slate .head .name{color:var(--slate);}
+.table-node.active{border-color:currentColor;}
+.table-node.tone-teal.active{border-color:var(--teal);}
+.table-node.tone-blue.active{border-color:var(--blue);}
+.table-node.tone-purple.active{border-color:var(--purple);}
+.table-node.tone-slate.active{border-color:var(--slate);}
+.table-node.active .badge{color:var(--text);border-color:var(--text-dim);}
+.table-node .badge.lookup{color:var(--slate);border-color:var(--slate-dim);border-style:dashed;}
+
+.detail{
+  margin-top:0;
+  max-height:0;
+  overflow:hidden;
+  transition:max-height .25s ease, margin-top .25s ease;
+}
+.table-node.has-data .detail{margin-top:8px;max-height:220px;}
+.detail .kv{
+  display:grid;
+  grid-template-columns:auto 1fr;
+  gap:2px 10px;
+  border-top:1px dashed var(--border);
+  padding-top:7px;
+  font-size:10.5px;
+}
+.detail .kv .k{color:var(--text-faint);}
+.detail .kv .v{color:var(--text);text-align:right;word-break:break-word;}
+.detail .placeholder{color:var(--text-faint);font-size:10px;font-style:normal;padding-top:2px;}
+
+.packet{
+  position:absolute;
+  width:9px;height:9px;
+  border-radius:2px;
+  transform:translate(-50%,-50%) rotate(45deg);
+  z-index:5;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .15s;
+}
+.packet.show{opacity:1;}
+.packet.lookup{background:transparent !important;border:2px solid var(--slate);}
+
+aside{
+  border-left:1px solid var(--border);
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+aside .log-head{
+  padding:12px 14px 8px 14px;
+  border-bottom:1px solid var(--border);
+  font-size:10px;
+  color:var(--text-faint);
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  display:flex;
+  justify-content:space-between;
+}
+#logList{
+  list-style:none;
+  margin:0;
+  padding:6px 10px;
+  overflow-y:auto;
+  flex:1;
+}
+#logList li{
+  padding:7px 8px;
+  border-radius:5px;
+  cursor:pointer;
+  border:1px solid transparent;
+  margin-bottom:2px;
+}
+#logList li:hover{background:var(--panel);}
+#logList li.current{background:var(--panel);border-color:var(--border);}
+#logList li .step-no{color:var(--text-faint);font-size:9.5px;}
+#logList li .line{font-size:11px;color:var(--text);margin-top:2px;}
+#logList li .line b{font-weight:600;}
+#logList li .action-insert{color:var(--teal);}
+#logList li .action-update{color:var(--blue);}
+#logList li .empty{color:var(--text-faint);font-size:11px;padding:10px 4px;}
+
+.controls{
+  grid-column:2;
+  border-top:1px solid var(--border);
+  padding:10px 22px;
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+.controls button{
+  background:var(--panel);
+  border:1px solid var(--border);
+  color:var(--text);
+  border-radius:6px;
+  width:30px;height:28px;
+  font-family:var(--mono);
+  font-size:12px;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+}
+.controls button:hover{border-color:var(--teal-dim);color:var(--teal);}
+#playBtn{width:52px;color:var(--amber);border-color:var(--amber-dim);}
+#playBtn:hover{color:var(--amber);border-color:var(--amber);}
+.controls input[type=range]{
+  flex:1;
+  accent-color:var(--teal);
+  height:3px;
+}
+.controls select{
+  background:var(--panel);
+  border:1px solid var(--border);
+  color:var(--text-dim);
+  border-radius:6px;
+  padding:5px 6px;
+  font-family:var(--mono);
+  font-size:11px;
+}
+.controls .step-count{font-size:11px;color:var(--text-dim);min-width:64px;text-align:right;}
+
+@media (max-width:980px){
+  .app{grid-template-columns:1fr;grid-template-rows:auto auto auto auto;}
+  nav,aside{border:none;border-bottom:1px solid var(--border);}
+  .controls{grid-column:1;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <span class="dot"></span>
+      <h1>GL Data Flow Simulator</h1>
+      <span class="sub">alur modul → tabel database, per transaksi</span>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--amber)"></i>modul / trigger</span>
+      <span><i style="background:var(--teal)"></i>tabel transaksi nominatif</span>
+      <span><i style="background:var(--blue)"></i>tabel saldo / master</span>
+      <span><i style="background:var(--purple)"></i>tabel jurnal GL</span>
+      <span><i style="background:var(--slate)"></i>tabel parameter (dibaca, bukan ditulis)</span>
+    </div>
+  </header>
+
+  <nav>
+    <div>
+      <div class="nav-label">Skenario</div>
+      <div class="scenario-list" id="scenarioList"></div>
+    </div>
+    <div class="json-toggle">
+      <button id="jsonToggleBtn">＋ Muat JSON kustom</button>
+      <div class="json-panel" id="jsonPanel">
+        <textarea id="jsonInput" placeholder='{ "modul": "Modul Jurnal", "steps": [ { "table": "jurnal_header", "action": "insert", "values": { "id": 1, "tanggal": "2026-07-21", "total_debit": 500000 } } ] }'></textarea>
+        <div class="row">
+          <button id="jsonLoadBtn">Muat</button>
+          <button id="jsonResetBtn">Reset default</button>
+        </div>
+        <div class="err" id="jsonMsg"></div>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <div class="scenario-head">
+      <div class="title" id="scenarioTitle">—</div>
+      <div class="desc" id="scenarioDesc"></div>
+    </div>
+    <div id="diagram">
+      <svg id="linesSvg"></svg>
+      <div class="module-col">
+        <div class="module-node" id="moduleNode">
+          <div class="k">modul / proses</div>
+          <div class="name" id="moduleName">—</div>
+          <div class="fire" id="moduleFire">menunggu trigger…</div>
+        </div>
+      </div>
+      <div class="tables-col" id="tablesCol"></div>
+      <div class="packet" id="packet"></div>
+    </div>
+  </main>
+
+  <aside>
+    <div class="log-head"><span>Log eksekusi</span><span id="logCount">0/0</span></div>
+    <ul id="logList"></ul>
+  </aside>
+
+  <div class="controls">
+    <button id="btnBack" title="Step back">◀</button>
+    <button id="playBtn" title="Play/Pause">▶</button>
+    <button id="btnFwd" title="Step forward">▶|</button>
+    <input type="range" id="scrub" min="0" max="0" value="0">
+    <select id="speedSel">
+      <option value="2">0.5x</option>
+      <option value="1" selected>1x</option>
+      <option value="0.5">2x</option>
+      <option value="0.25">4x</option>
+    </select>
+    <span class="step-count" id="stepCount">0 / 0</span>
+  </div>
+</div>
+
+<script>
+// ---------- table metadata ----------
+const TABLE_META = {
+  sv_tran_daily:   { label:'Transaksi Tabungan Harian', tone:'teal' },
+  sv_tran:         { label:'Transaksi Tabungan (Historis)', tone:'teal' },
+  sv_mast:         { label:'Master Saldo Tabungan', tone:'blue' },
+  dp_tran_daily:   { label:'Transaksi Deposito Harian', tone:'teal' },
+  dp_tran:         { label:'Transaksi Deposito (Historis)', tone:'teal' },
+  dp_mast:         { label:'Master Saldo Deposito', tone:'blue' },
+  ln_tran_daily:   { label:'Transaksi Pinjaman Harian', tone:'teal' },
+  ln_tran:         { label:'Transaksi Pinjaman (Historis)', tone:'teal' },
+  ln_mast:         { label:'Master Saldo Pinjaman (KYD)', tone:'blue' },
+  ln_mast_restruk: { label:'Master Restrukturisasi/Addendum Kredit', tone:'blue' },
+  ln_hist_restruk: { label:'Histori Restrukturisasi per Debitur', tone:'blue' },
+  ln_mast_amor:    { label:'Jadwal Amortisasi Provisi Pinjaman', tone:'blue' },
+  gl_mast:         { label:'Saldo GL per CoA', tone:'blue' },
+  gl_tran_daily:   { label:'Jurnal GL Harian (Staging)', tone:'purple' },
+  gl_tran:         { label:'Jurnal GL Historis', tone:'purple' },
+  gl_tran_approval:{ label:'Antrian Approval GL', tone:'purple' },
+  gl_temp:         { label:'Staging Perubahan Parameter (Maker-Checker)', tone:'purple' },
+  jurnal_header:   { label:'Header Jurnal', tone:'purple' },
+  jurnal_detail:   { label:'Detail Jurnal', tone:'purple' },
+  mn_para_trancode:{ label:'Parameter Kode Transaksi', tone:'slate' },
+  gl_para_pattern: { label:'Pattern Jurnal (Template Posting Otomatis)', tone:'slate' },
+  gl_para_journal: { label:'Master Jurnal', tone:'slate' },
+  gl_para_comp:    { label:'Komponen Jurnal', tone:'slate' },
+  gl_para_coa:     { label:'Chart of Account (CoA)', tone:'slate' },
+  gl_para_prodmp:  { label:'Mapping Produk → Komponen GL', tone:'slate' },
+  gl_para_prodgl:  { label:'Mapping Komponen → CoA per Produk', tone:'slate' }
+};
+function metaFor(table){
+  return TABLE_META[table] || { label: table, tone:'blue' };
+}
+
+// ---------- default scenarios ----------
+const DEFAULT_SCENARIOS = [
+{
+  id:'setoran_tabungan', category:'Transaksi Nominatif',
+  modul:'Modul Tabungan — Setoran Tunai',
+  desc:'Nasabah setor tunai lewat teller. Uang masuk (Kas Teller naik), utang bank ke nasabah bertambah (Tabungan naik).',
+  steps:[
+    { table:'sv_tran_daily', action:'insert', values:{ slipnum:'TLR-000123', account_number:'1-01-00-00456-3', trancode:'101 - Setoran Tunai', amount:500000, descr:'Setoran tunai teller', effective_date:'2026-07-21' } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'1101.001', coa_name:'Kas Teller', arah:'Debit (+)', daily_debit:'+500,000', cbal_sebelum:12500000, cbal_sesudah:13000000 } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'2101.045', coa_name:'Tabungan Nasabah', arah:'Kredit (+)', daily_credit:'+500,000', cbal_sebelum:4200000, cbal_sesudah:4700000 } },
+    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'TLR-000123', account_number:'1101.001 / 2101.045', amount:500000, status:'A', trancode:'101 - Setoran Tunai', effective_date:'2026-07-21' } }
+  ]
+},
+{
+  id:'penarikan_tabungan', category:'Transaksi Nominatif',
+  modul:'Modul Tabungan — Penarikan Tunai',
+  desc:'Nasabah tarik tunai. Utang bank ke nasabah berkurang (Tabungan turun), uang keluar (Kas Teller turun).',
+  steps:[
+    { table:'sv_tran_daily', action:'insert', values:{ slipnum:'TLR-000201', account_number:'1-01-00-00456-3', trancode:'201 - Penarikan Tunai', amount:200000, descr:'Penarikan tunai teller', effective_date:'2026-07-21' } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'2101.045', coa_name:'Tabungan Nasabah', arah:'Debit (-)', daily_debit:'+200,000', cbal_sebelum:4700000, cbal_sesudah:4500000 } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'1101.001', coa_name:'Kas Teller', arah:'Kredit (-)', daily_credit:'+200,000', cbal_sebelum:13000000, cbal_sesudah:12800000 } },
+    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'TLR-000201', account_number:'2101.045 / 1101.001', amount:200000, status:'A', trancode:'201 - Penarikan Tunai', effective_date:'2026-07-21' } }
+  ]
+},
+{
+  id:'pembukaan_deposito', category:'Transaksi Nominatif',
+  modul:'Modul Deposito — Pembukaan Rekening',
+  desc:'Nasabah buka deposito baru, dana didebet dari tabungan/kas, dicatat sebagai master deposito baru dengan tenor & bunga.',
+  steps:[
+    { table:'dp_tran_daily', action:'insert', values:{ slipnum:'DPO-000045', account_number:'3-01-00-00089-7', trancode:'301 - Pembukaan Deposito', amount:10000000, descr:'Pembukaan deposito 3 bulan', effective_date:'2026-07-21' } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'2101.045', coa_name:'Tabungan Nasabah (sumber dana)', arah:'Debit (-)', daily_debit:'+10,000,000', cbal_sebelum:4500000, cbal_sesudah:-5500000, catatan:'saldo ilustrasi, asumsi ada dana lain' } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'2201.010', coa_name:'Deposito Berjangka', arah:'Kredit (+)', daily_credit:'+10,000,000', cbal_sebelum:850000000, cbal_sesudah:860000000 } },
+    { table:'dp_mast', action:'insert', values:{ account_number:'3-01-00-00089-7', open_date:'2026-07-21', due_date:'2026-10-21', term:'3 bulan', interest_rate:'5.25%', amount:10000000 } }
+  ]
+},
+{
+  id:'pencairan_pinjaman', category:'Transaksi Nominatif',
+  modul:'Modul Pinjaman (KYD) — Pencairan Kredit',
+  desc:'Kredit dicairkan: KYD (aset bank) bertambah, dana cair ke rekening nasabah, provisi kredit diakui sebagai pendapatan ditangguhkan.',
+  steps:[
+    { table:'ln_tran_daily', action:'insert', values:{ slipnum:'LNC-000012', account_number:'5-01-00-00234-2', trancode:'501 - Pencairan Kredit', prcpl_amount:50000000, descr:'Pencairan kredit modal kerja', effective_date:'2026-07-21' } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'1301.020', coa_name:'Pinjaman yang Diberikan (KYD)', arah:'Debit (+)', daily_debit:'+50,000,000', cbal_sebelum:2100000000, cbal_sesudah:2150000000 } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'2101.045', coa_name:'Tabungan Nasabah (pencairan)', arah:'Kredit (+)', daily_credit:'+49,250,000', cbal_sebelum:4500000, cbal_sesudah:53750000 } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'2301.005', coa_name:'Provisi KYD (Pendapatan Ditangguhkan)', arah:'Kredit (+)', daily_credit:'+750,000', cbal_sebelum:15000000, cbal_sesudah:15750000 } },
+    { table:'ln_mast', action:'insert', values:{ account_number:'5-01-00-00234-2', plafond:50000000, term:'24 bulan', interest_rate:'14% p.a.', due_date:'2028-07-21', kolektibilitas:'1 - Lancar' } }
+  ]
+},
+{
+  id:'angsuran_pinjaman', category:'Transaksi Nominatif',
+  modul:'Modul Pinjaman (KYD) — Pembayaran Angsuran',
+  desc:'Nasabah bayar angsuran (pokok + bunga). Pokok pinjaman berkurang, akrual bunga (PBAD) yang sudah diakui sebelumnya kini dilunasi.',
+  steps:[
+    { table:'ln_tran_daily', action:'insert', values:{ slipnum:'LNA-000340', account_number:'5-01-00-00234-2', trancode:'510 - Angsuran', prcpl_amount:2000000, int_amount:583333, fine_amount:0, descr:'Angsuran bulan ke-1', effective_date:'2026-07-21' } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'2101.045', coa_name:'Tabungan Nasabah', arah:'Debit (-)', daily_debit:'+2,583,333', cbal_sebelum:53750000, cbal_sesudah:51166667 } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'1301.020', coa_name:'Pinjaman yang Diberikan (KYD)', arah:'Kredit (-)', daily_credit:'+2,000,000', cbal_sebelum:2150000000, cbal_sesudah:2148000000 } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'1302.001', coa_name:'PBAD KYD (Piutang Bunga)', arah:'Kredit (-)', daily_credit:'+583,333', cbal_sebelum:1750000, cbal_sesudah:1166667 } }
+  ]
+},
+{
+  id:'eod_akrual_tabungan', category:'End of Day',
+  modul:'EOD — Akrual Bunga Tabungan',
+  desc:'Proses batch akhir hari: hitung bunga harian tabungan, jurnal otomatis, lalu pindahkan transaksi harian ke tabel historis.',
+  steps:[
+    { table:'gl_mast', action:'update', values:{ coa_num:'5201.001', coa_name:'Biaya Bunga Tabungan', arah:'Debit (+)', daily_debit:'+38,500', cbal_sebelum:1250000, cbal_sesudah:1288500 } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'2102.001', coa_name:'Utang Bunga Tabungan', arah:'Kredit (+)', daily_credit:'+38,500', cbal_sebelum:980000, cbal_sesudah:1018500 } },
+    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'EOD-20260721-014', account_number:'5201.001 / 2102.001', amount:38500, status:'A', trancode:'901 - Akrual Bunga Tabungan', catatan:'dibuat otomatis oleh batch EOD' } },
+    { table:'gl_tran', action:'insert', values:{ slipno:'EOD-20260721-014', transaction_date:'2026-07-21', amount:38500, descr:'Akrual bunga tabungan (auto)', catatan:'dipindahkan dari gl_tran_daily saat proses EOD' } }
+  ]
+},
+{
+  id:'transaksi_umum_manual', category:'Transaksi Manual',
+  modul:'Modul GL Manual (GLTR0001) — Transaksi Umum',
+  desc:'Posting jurnal manual yang tidak terkait modul nominatif, misal pembelian ATK. Jika melebihi limit user, masuk antrian approval.',
+  steps:[
+    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'GLM-000078', account_number:'5301.002 / 1101.002', amount:1500000, status:'P', trancode:'701 - Transaksi Umum', descr:'Pembelian ATK Kantor', effective_date:'2026-07-21' } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'5301.002', coa_name:'Biaya ATK & Cetakan', arah:'Debit (+)', daily_debit:'+1,500,000', cbal_sebelum:4200000, cbal_sesudah:5700000 } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'1101.002', coa_name:'Kas Besar', arah:'Kredit (-)', daily_credit:'+1,500,000', cbal_sebelum:85000000, cbal_sesudah:83500000 } },
+    { table:'gl_tran_approval', action:'insert', values:{ slipnum:'GLM-000078', status:'P (Pending)', reason:'Melebihi limit approval user teller', transaction_date:'2026-07-21', catatan:'menunggu approval supervisor via GLTR0003' } }
+  ]
+},
+{
+  id:'restrukturisasi_pinjaman', category:'Restrukturisasi & Penyelesaian Kredit',
+  modul:'Modul Pinjaman (KYD) — Restrukturisasi Kredit',
+  desc:'Debitur kesulitan bayar, kolektibilitas & plafond diubah. Bank mengakui kerugian restrukturisasi (selisih outstanding vs NPV), sisa provisi diakui pendapatan, dan PPAP disesuaikan (POJK 1/2024).',
+  steps:[
+    { table:'ln_mast_restruk', action:'insert', values:{ ln_mast_id:'LN-000234', account_number:'5-01-00-00234-2', restruk_dt:'2026-07-21', outstanding_saat_restruk:48000000, plafond_baru:48000000, npv:42000000, restruk_loss:6000000, addendum:null, collect_id_baru:'3 - Kurang Lancar', reason:'Debitur turun omset usaha' } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'6401.010', coa_name:'Beban Kerugian Restrukturisasi', arah:'Debit (+)', daily_debit:'+6,000,000', catatan:'selisih outstanding vs NPV' } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'1303.002', coa_name:'Penyisihan Kerugian Restrukturisasi (Pengurang Aset)', arah:'Kredit (+)', daily_credit:'+6,000,000' } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'1301.030', coa_name:'KYD Provisi (sisa belum diamortisasi)', arah:'Debit (-)', daily_debit:'+900,000' } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'5301.010', coa_name:'Pendapatan Bunga KYD Provisi', arah:'Kredit (+)', daily_credit:'+900,000', catatan:'sisa provisi langsung diakui sebagai pendapatan' } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'1304.005', coa_name:'PPAP Khusus', arah:'Disesuaikan', catatan:'penyesuaian PPAP karena kolektibilitas berubah ke KL (maks. 3 untuk eks-NPL yang direstruk)' } }
+  ]
+},
+{
+  id:'addendum_pinjaman', category:'Restrukturisasi & Penyelesaian Kredit',
+  modul:'Modul Pinjaman (KYD) — Addendum Perjanjian Kredit',
+  desc:'Perubahan tenor/suku bunga tanpa debitur bermasalah (bukan restruk penuh). Tersimpan di tabel yang sama (ln_mast_restruk) tapi kolom addendum diisi, dan tidak ada jurnal kerugian — hanya penyesuaian jadwal amortisasi provisi.',
+  steps:[
+    { table:'ln_mast_restruk', action:'insert', values:{ ln_mast_id:'LN-000556', account_number:'5-01-00-00556-9', restruk_dt:'2026-07-21', addendum:1, plafond_baru:'tetap', interest_rate_eff:'13% (dari 14%)', reason:'Perpanjangan tenor atas permintaan nasabah', restruk_loss:0 } },
+    { table:'ln_mast_amor', action:'update', values:{ ln_mast_id:'LN-000556', next_amor_date:'2026-08-21', remain:2400000, catatan:'jadwal amortisasi provisi disesuaikan dengan tenor baru, tanpa jurnal kerugian' } }
+  ]
+},
+{
+  id:'hapus_buku_pokok', category:'Restrukturisasi & Penyelesaian Kredit',
+  modul:'Modul Pinjaman (KYD) — Hapus Buku Pokok (Write-off)',
+  desc:'Pokok kredit macet (kolektibilitas 5) dihapusbukukan dari neraca aktif menggunakan cadangan PPAP Khusus yang sudah dibentuk. Tetap dicatat administratif untuk potensi tagih kembali.',
+  steps:[
+    { table:'ln_tran_daily', action:'insert', values:{ slipnum:'LNW-000009', account_number:'5-01-00-00998-4', trancode:'590 - Hapus Buku Pokok', prcpl_amount:35000000, descr:'Hapus buku pokok kredit macet (kolek 5)', effective_date:'2026-07-21' } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'1304.005', coa_name:'PPAP Khusus', arah:'Debit (-)', daily_debit:'+35,000,000', catatan:'cadangan PPAP dipakai' } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'1301.020', coa_name:'Pinjaman yang Diberikan (KYD) — Pokok', arah:'Kredit (-)', daily_credit:'+35,000,000', catatan:'outstanding pokok jadi 0 di neraca aktif' } },
+    { table:'ln_mast', action:'update', values:{ account_number:'5-01-00-00998-4', status:'Hapus Buku', cbal:0, kolektibilitas:'5 - Macet' } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'9101.001', coa_name:'Memorandum Kredit Hapus Buku (Off Balance Sheet)', arah:'Debit (+)', daily_debit:'+35,000,000', catatan:'pencatatan administratif untuk potensi tagih kembali' } }
+  ]
+},
+{
+  id:'hapus_buku_tagihan', category:'Restrukturisasi & Penyelesaian Kredit',
+  modul:'Modul Pinjaman (KYD) — Hapus Buku Tagihan Bunga (PBAD)',
+  desc:'Piutang bunga (PBAD) yang sudah terlanjur diakui sebagai pendapatan tapi tidak tertagih, dihapusbukukan agar pendapatan tidak overstate.',
+  steps:[
+    { table:'ln_tran_daily', action:'insert', values:{ slipnum:'LNW-000010', account_number:'5-01-00-00998-4', trancode:'591 - Hapus Buku Tagihan Bunga', int_amount:4200000, descr:'Hapus buku PBAD kredit macet', effective_date:'2026-07-21' } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'5301.001', coa_name:'Pendapatan Bunga KYD Kontraktual (koreksi)', arah:'Debit (-)', daily_debit:'+4,200,000', catatan:'reverse pendapatan bunga yang sudah terlanjur diakui' } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'1302.001', coa_name:'PBAD KYD (Piutang Bunga)', arah:'Kredit (-)', daily_credit:'+4,200,000', catatan:'piutang bunga dihapus dari neraca' } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'9102.001', coa_name:'Memorandum Tagihan Bunga Hapus Buku (Off Balance Sheet)', arah:'Debit (+)', daily_debit:'+4,200,000', catatan:'dicatat administratif untuk potensi tagih kembali' } }
+  ]
+},
+{
+  id:'pbad_akrual', category:'End of Day',
+  modul:'EOD — Akrual Bunga Pinjaman (PBAD, Kolektibilitas Lancar)',
+  desc:'Bank mengakui pendapatan bunga kredit lancar setiap hari meski nasabah belum bayar, dicatat sebagai piutang (PBAD = Pendapatan Bunga yang Akan Diterima).',
+  steps:[
+    { table:'gl_mast', action:'update', values:{ coa_num:'1302.001', coa_name:'PBAD KYD (Piutang Bunga)', arah:'Debit (+)', daily_debit:'+583,333', cbal_sebelum:1166667, cbal_sesudah:1750000 } },
+    { table:'gl_mast', action:'update', values:{ coa_num:'5301.001', coa_name:'Pendapatan Bunga KYD Kontraktual', arah:'Kredit (+)', daily_credit:'+583,333', cbal_sebelum:120000000, cbal_sesudah:120583333 } },
+    { table:'gl_tran_daily', action:'insert', values:{ slipnum:'EOD-20260721-021', account_number:'1302.001 / 5301.001', amount:583333, trancode:'902 - Akrual Bunga Pinjaman', catatan:'dibuat otomatis oleh batch EOD, per rekening pinjaman lancar' } }
+  ]
+},
+{
+  id:'pattern_resolution', category:'Parameter & Setup (Baca, Bukan Tulis)',
+  modul:'Penentuan Pattern Jurnal — Setoran Tunai (101)',
+  desc:'Ini BUKAN transaksi (tidak insert data baru). Ini proses BACA parameter yang menentukan CoA mana kena debit/kredit saat trancode tertentu terjadi. Garis putus-putus & packet outline = tabel dibaca (lookup), bukan ditulis. Hasil resolve ini yang dipakai saat insert ke gl_mast/gl_tran_daily di skenario transaksi.',
+  steps:[
+    { table:'mn_para_trancode', action:'lookup', values:{ code:'101', desc:'Setoran Tunai', crdr_default:'tergantung komponen' } },
+    { table:'gl_para_pattern', action:'lookup', values:{ gl_para_journal_id:'JR001 - Jurnal Setoran Tunai', gl_para_comp_id:'KAS_TELLER', mn_para_trancode_id:'101 - Setoran Tunai', array_col:'amount' } },
+    { table:'gl_para_journal', action:'lookup', values:{ code:'JR001', desc:'Jurnal Setoran Tunai', sub:false } },
+    { table:'gl_para_comp', action:'lookup', values:{ comp_code:'KAS_TELLER', comp_name:'Komponen Kas Teller' } },
+    { table:'gl_para_coa', action:'lookup', values:{ coa_num:'1101.001', coa_name:'Kas Teller', crdr:'D (baki debet)', type:'D (detail, bisa ditransaksikan)' } },
+    { table:'gl_para_prodmp', action:'lookup', values:{ appcode_id:'SV (Tabungan)', product_id:'TAB-REG', comp_code:'REK_TABUNGAN' } },
+    { table:'gl_para_prodgl', action:'lookup', values:{ comp_code:'REK_TABUNGAN', coa_num:'2101.045', coa_name:'Tabungan Nasabah', hasil:'CoA lawan (kredit) untuk komponen produk tabungan' } }
+  ]
+}
+];
+
+// ---------- state ----------
+let scenarios = JSON.parse(JSON.stringify(DEFAULT_SCENARIOS));
+let currentIdx = 0;
+let steps = [];
+let completed = 0;      // number of steps already applied
+let playing = false;
+let speed = 1;
+const TRAVEL_MS = 900;
+const DWELL_MS = 850;
+let animToken = 0;      // to cancel stale rAF loops
+
+const els = {
+  scenarioList: document.getElementById('scenarioList'),
+  scenarioTitle: document.getElementById('scenarioTitle'),
+  scenarioDesc: document.getElementById('scenarioDesc'),
+  moduleName: document.getElementById('moduleName'),
+  moduleFire: document.getElementById('moduleFire'),
+  moduleNode: document.getElementById('moduleNode'),
+  tablesCol: document.getElementById('tablesCol'),
+  diagram: document.getElementById('diagram'),
+  linesSvg: document.getElementById('linesSvg'),
+  packet: document.getElementById('packet'),
+  logList: document.getElementById('logList'),
+  logCount: document.getElementById('logCount'),
+  scrub: document.getElementById('scrub'),
+  playBtn: document.getElementById('playBtn'),
+  btnBack: document.getElementById('btnBack'),
+  btnFwd: document.getElementById('btnFwd'),
+  speedSel: document.getElementById('speedSel'),
+  stepCount: document.getElementById('stepCount'),
+  jsonToggleBtn: document.getElementById('jsonToggleBtn'),
+  jsonPanel: document.getElementById('jsonPanel'),
+  jsonInput: document.getElementById('jsonInput'),
+  jsonLoadBtn: document.getElementById('jsonLoadBtn'),
+  jsonResetBtn: document.getElementById('jsonResetBtn'),
+  jsonMsg: document.getElementById('jsonMsg')
+};
+
+const toneColor = { teal:'var(--teal)', blue:'var(--blue)', purple:'var(--purple)', slate:'var(--slate)' };
+const toneColorRaw = { teal:'#4fb3a9', blue:'#5b8dd9', purple:'#9b7fd4', slate:'#8b93a7' };
+
+function renderScenarioNav(){
+  els.scenarioList.innerHTML = '';
+  scenarios.forEach((sc, i)=>{
+    const btn = document.createElement('button');
+    btn.className = 'scenario-btn' + (i===currentIdx ? ' active' : '');
+    btn.innerHTML = `${sc.modul}<span class="cat">${sc.category || ''}</span>`;
+    btn.onclick = ()=> selectScenario(i);
+    els.scenarioList.appendChild(btn);
+  });
+}
+
+function selectScenario(i){
+  currentIdx = i;
+  pause();
+  loadScenario(scenarios[i]);
+  renderScenarioNav();
+}
+
+function loadScenario(sc){
+  steps = sc.steps || [];
+  completed = 0;
+  els.scenarioTitle.textContent = sc.modul;
+  els.scenarioDesc.textContent = sc.desc || '';
+  els.moduleName.textContent = sc.modul;
+  els.moduleFire.textContent = 'menunggu trigger…';
+  els.moduleNode.classList.remove('pulse');
+
+  // unique tables in order of first appearance
+  const seen = new Set();
+  const uniqueTables = [];
+  steps.forEach(s=>{ if(!seen.has(s.table)){ seen.add(s.table); uniqueTables.push(s.table); } });
+
+  els.tablesCol.innerHTML = '';
+  uniqueTables.forEach(t=>{
+    const meta = metaFor(t);
+    const node = document.createElement('div');
+    node.className = `table-node tone-${meta.tone}`;
+    node.dataset.table = t;
+    node.innerHTML = `
+      <div class="head">
+        <div>
+          <div class="name">${t}</div>
+          <div class="friendly">${meta.label}</div>
+        </div>
+        <div class="badge">idle</div>
+      </div>
+      <div class="detail"><div class="placeholder">— belum ada data —</div></div>
+    `;
+    els.tablesCol.appendChild(node);
+  });
+
+  els.logList.innerHTML = '';
+  els.logList.innerHTML = '<li class="empty">belum ada step dijalankan</li>';
+
+  els.scrub.max = steps.length;
+  els.scrub.value = 0;
+  updateCounters();
+  hidePacket();
+  requestAnimationFrame(drawLines);
+}
+
+function tableNodeEl(table){
+  return els.tablesCol.querySelector(`.table-node[data-table="${CSS.escape(table)}"]`);
+}
+
+// ---------- geometry / lines ----------
+function pointFor(el, side){
+  const c = els.diagram.getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  const y = r.top - c.top + r.height/2;
+  const x = side === 'right' ? (r.right - c.left) : (r.left - c.left);
+  return { x, y };
+}
+
+function firstActionFor(table){
+  const s = steps.find(s=>s.table===table);
+  return s ? s.action : 'insert';
+}
+
+function drawLines(){
+  const svg = els.linesSvg;
+  svg.innerHTML = '';
+  const moduleEl = els.moduleNode;
+  const from = pointFor(moduleEl, 'right');
+  const nodes = els.tablesCol.querySelectorAll('.table-node');
+  nodes.forEach(n=>{
+    const to = pointFor(n, 'left');
+    const meta = metaFor(n.dataset.table);
+    const line = document.createElementNS('http://www.w3.org/2000/svg','path');
+    const midX = from.x + (to.x - from.x) * 0.45;
+    const d = `M ${from.x} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x} ${to.y}`;
+    line.setAttribute('d', d);
+    line.setAttribute('fill','none');
+    line.setAttribute('stroke', 'rgba(120,128,145,0.18)');
+    line.setAttribute('stroke-width','1');
+    if(firstActionFor(n.dataset.table) === 'lookup'){
+      line.setAttribute('stroke-dasharray','4 4');
+    }
+    line.dataset.table = n.dataset.table;
+    svg.appendChild(line);
+  });
+}
+window.addEventListener('resize', ()=>requestAnimationFrame(drawLines));
+
+function highlightLine(table, tone, on){
+  const line = els.linesSvg.querySelector(`path[data-table="${CSS.escape(table)}"]`);
+  if(!line) return;
+  line.setAttribute('stroke', on ? toneColorRaw[tone] : 'rgba(120,128,145,0.18)');
+  line.setAttribute('stroke-width', on ? '1.6' : '1');
+}
+
+// ---------- packet animation ----------
+function hidePacket(){
+  els.packet.classList.remove('show');
+}
+
+function animatePacketTo(table, duration, cb, action){
+  const node = tableNodeEl(table);
+  if(!node){ cb && cb(); return; }
+  const meta = metaFor(table);
+  const from = pointFor(els.moduleNode, 'right');
+  const to = pointFor(node, 'left');
+  const isLookup = action === 'lookup';
+  els.packet.classList.toggle('lookup', isLookup);
+  if(isLookup){
+    els.packet.style.background = 'transparent';
+    els.packet.style.borderColor = toneColorRaw[meta.tone];
+  } else {
+    els.packet.style.background = toneColorRaw[meta.tone];
+  }
+  els.packet.classList.add('show');
+  els.moduleNode.classList.add('pulse');
+  highlightLine(table, meta.tone, true);
+
+  const myToken = ++animToken;
+  const start = performance.now();
+  function frame(now){
+    if(myToken !== animToken) return; // superseded
+    const t = Math.min(1, (now - start) / duration);
+    const x = from.x + (to.x - from.x) * t;
+    const y = from.y + (to.y - from.y) * t;
+    els.packet.style.left = x + 'px';
+    els.packet.style.top = y + 'px';
+    if(t < 1){
+      requestAnimationFrame(frame);
+    } else {
+      cb && cb();
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+// ---------- applying step data ----------
+function fmtVal(v){
+  if(typeof v === 'number') return v.toLocaleString('id-ID');
+  return String(v);
+}
+
+function applyStep(i, flash){
+  const step = steps[i];
+  const node = tableNodeEl(step.table);
+  if(!node) return;
+  const meta = metaFor(step.table);
+  node.classList.add('has-data');
+  const badge = node.querySelector('.badge');
+  const badgeLabel = step.action === 'lookup' ? 'lookup · baca' : (step.action + ' · row #' + (i+1));
+  badge.textContent = badgeLabel;
+  badge.classList.toggle('lookup', step.action === 'lookup');
+  const detail = node.querySelector('.detail');
+  const rows = Object.entries(step.values || {}).map(([k,v])=>
+    `<div class="k">${k}</div><div class="v">${fmtVal(v)}</div>`
+  ).join('');
+  detail.innerHTML = `<div class="kv">${rows}</div>`;
+
+  if(flash){
+    node.classList.add('active');
+    setTimeout(()=>{ node.classList.remove('active'); highlightLine(step.table, meta.tone, false); }, DWELL_MS/speed);
+    els.moduleNode.classList.add('pulse');
+  }
+
+  // log entry
+  els.moduleFire.textContent = step.action === 'lookup' ? `terakhir baca ${step.table}` : `terakhir kirim ke ${step.table}`;
+  addLogEntry(i, step);
+}
+
+function addLogEntry(i, step){
+  if(els.logList.querySelector('.empty')) els.logList.innerHTML = '';
+  const li = document.createElement('li');
+  li.dataset.idx = i;
+  let actionClass = 'action-update';
+  let rowInfo = 'update saldo';
+  if(step.action === 'insert'){ actionClass = 'action-insert'; rowInfo = 'insert 1 row'; }
+  else if(step.action === 'lookup'){ actionClass = ''; rowInfo = 'baca parameter (read-only)'; }
+  li.innerHTML = `<div class="step-no">STEP ${i+1}/${steps.length}</div>
+    <div class="line"><b>${scenarios[currentIdx].modul.split('—')[0].trim()}</b> → <b>${step.table}</b><br><span class="${actionClass}">${step.action}</span> · ${rowInfo}</div>`;
+  li.onclick = ()=>{ pause(); jumpTo(i+1); };
+  els.logList.appendChild(li);
+  els.logList.scrollTop = els.logList.scrollHeight;
+  markCurrentLog(i);
+}
+
+function markCurrentLog(i){
+  els.logList.querySelectorAll('li').forEach(li=>li.classList.remove('current'));
+  const cur = els.logList.querySelector(`li[data-idx="${i}"]`);
+  if(cur) cur.classList.add('current');
+}
+
+// ---------- state reset / jump ----------
+function resetTablesVisual(){
+  els.tablesCol.querySelectorAll('.table-node').forEach(node=>{
+    node.classList.remove('has-data','active');
+    node.querySelector('.badge').textContent = 'idle';
+    node.querySelector('.detail').innerHTML = '<div class="placeholder">— belum ada data —</div>';
+  });
+  els.linesSvg.querySelectorAll('path').forEach(p=>{
+    p.setAttribute('stroke','rgba(120,128,145,0.18)');
+    p.setAttribute('stroke-width','1');
+  });
+  els.moduleNode.classList.remove('pulse');
+  els.moduleFire.textContent = 'menunggu trigger…';
+}
+
+function jumpTo(n){
+  resetTablesVisual();
+  els.logList.innerHTML = '<li class="empty">belum ada step dijalankan</li>';
+  for(let i=0;i<n;i++){
+    applyStep(i, false);
+  }
+  completed = n;
+  if(n > 0){
+    const lastStep = steps[n-1];
+    const node = tableNodeEl(lastStep.table);
+    if(node){
+      const meta = metaFor(lastStep.table);
+      const to = pointFor(node, 'left');
+      const isLookup = lastStep.action === 'lookup';
+      els.packet.classList.toggle('lookup', isLookup);
+      if(isLookup){
+        els.packet.style.background = 'transparent';
+        els.packet.style.borderColor = toneColorRaw[meta.tone];
+      } else {
+        els.packet.style.background = toneColorRaw[meta.tone];
+      }
+      els.packet.style.left = to.x + 'px';
+      els.packet.style.top = to.y + 'px';
+      els.packet.classList.add('show');
+      node.classList.add('active');
+      highlightLine(lastStep.table, meta.tone, true);
+      els.moduleNode.classList.add('pulse');
+    }
+    markCurrentLog(n-1);
+  } else {
+    hidePacket();
+  }
+  updateCounters();
+}
+
+function updateCounters(){
+  els.scrub.value = completed;
+  els.scrub.max = steps.length;
+  els.stepCount.textContent = `${completed} / ${steps.length}`;
+  els.logCount.textContent = `${completed}/${steps.length}`;
+}
+
+// ---------- playback control ----------
+function playAdvance(){
+  if(completed >= steps.length){ playing=false; updatePlayUI(); return; }
+  const i = completed;
+  const step = steps[i];
+  animatePacketTo(step.table, TRAVEL_MS/speed, ()=>{
+    applyStep(i, true);
+    completed = i+1;
+    updateCounters();
+    if(playing){
+      setTimeout(()=>{ if(playing) playAdvance(); }, DWELL_MS/speed);
+    }
+  }, step.action);
+}
+
+function play(){
+  if(completed >= steps.length) jumpTo(0);
+  playing = true;
+  updatePlayUI();
+  playAdvance();
+}
+function pause(){
+  playing = false;
+  updatePlayUI();
+}
+function updatePlayUI(){
+  els.playBtn.textContent = playing ? '❚❚' : '▶';
+}
+
+els.playBtn.onclick = ()=>{ playing ? pause() : play(); };
+els.btnFwd.onclick = ()=>{
+  pause();
+  if(completed < steps.length) playAdvance();
+};
+els.btnBack.onclick = ()=>{
+  pause();
+  if(completed > 0) jumpTo(completed - 1);
+};
+els.scrub.oninput = (e)=>{
+  pause();
+  jumpTo(parseInt(e.target.value, 10));
+};
+els.speedSel.onchange = (e)=>{ speed = parseFloat(e.target.value); };
+
+// ---------- JSON loader ----------
+els.jsonToggleBtn.onclick = ()=>{
+  els.jsonPanel.classList.toggle('open');
+};
+els.jsonLoadBtn.onclick = ()=>{
+  els.jsonMsg.className = 'err';
+  els.jsonMsg.textContent = '';
+  let parsed;
+  try{
+    parsed = JSON.parse(els.jsonInput.value);
+  }catch(e){
+    els.jsonMsg.textContent = 'JSON tidak valid: ' + e.message;
+    return;
+  }
+  const list = Array.isArray(parsed) ? parsed : [parsed];
+  for(const sc of list){
+    if(!sc.modul || !Array.isArray(sc.steps)){
+      els.jsonMsg.textContent = 'Format salah: butuh field "modul" (string) dan "steps" (array).';
+      return;
+    }
+    for(const st of sc.steps){
+      if(!st.table || !st.action || typeof st.values !== 'object'){
+        els.jsonMsg.textContent = 'Setiap step butuh "table", "action", dan "values" (object).';
+        return;
+      }
+    }
+  }
+  const added = list.map((sc, idx)=>({
+    id: 'custom_' + Date.now() + '_' + idx,
+    category: 'Kustom',
+    modul: sc.modul,
+    desc: sc.desc || 'Skenario dari JSON kustom.',
+    steps: sc.steps
+  }));
+  scenarios = scenarios.concat(added);
+  renderScenarioNav();
+  selectScenario(scenarios.length - added.length);
+  els.jsonMsg.className = 'ok';
+  els.jsonMsg.textContent = `Berhasil memuat ${added.length} skenario kustom.`;
+};
+els.jsonResetBtn.onclick = ()=>{
+  scenarios = JSON.parse(JSON.stringify(DEFAULT_SCENARIOS));
+  currentIdx = 0;
+  renderScenarioNav();
+  loadScenario(scenarios[0]);
+  els.jsonMsg.textContent = '';
+  els.jsonInput.value = '';
+};
+
+// ---------- init ----------
+renderScenarioNav();
+loadScenario(scenarios[0]);
+</script>
+</body>
+</html>
