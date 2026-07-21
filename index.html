@@ -8,27 +8,31 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{
-  --bg:#f5f6f9; /* background utama halaman */
-  --panel:#101218; /* background card/kotak */
-  --panel-alt:#0c0e13; /* background elemen lebih dalam (code block, textarea, kv-panel) */
-  --border:#1e222b;
-  --border-soft:#181b22;
-  --text:#c9cdd6;  /* warna teks utama */
-  --text-dim:#7a8090; /* teks sekunder */
-  --text-faint:#454b57;
-  --amber:#d9a441;
-  --amber-dim:#7a5f2e;
-  --teal:#4fb3a9;
-  --teal-dim:#2c5c56;
-  --purple:#9b7fd4;
-  --purple-dim:#584a7a;
-  --blue:#5b8dd9;
-  --blue-dim:#334f74;
-  --slate:#8b93a7;
-  --slate-dim:#4b515e;
-  --red:#c96a6a;
-  --mono:'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+:root {
+  --bg: #f8fafc;          /* Background utama: light slate yang dingin & bersih */
+  --panel: #ffffff;       /* Card/Panel utama: putih bersih biar kontras */
+  --panel-alt: #f1f5f9;   /* Inner panel/Code block: abu-abu muda lembut */
+  --border: #cbd5e1;      /* Garis tepi tegas */
+  --border-soft: #e2e8f0; /* Garis tepi tipis/divider */
+  
+  --text: #0f172a;        /* Teks utama: Slate sangat gelap (jauh lebih tajam dari hitam pekat) */
+  --text-dim: #475569;    /* Teks sekunder/label */
+  --text-faint: #94a3b8;  /* Placeholder / disabled state */
+  
+  /* Aksentuasi Warna (Dibuat sedikit lebih saturated & jelas di background terang) */
+  --amber: #d97706;
+  --amber-dim: #fef3c7;
+  --teal: #0d9488;
+  --teal-dim: #ccfbf1;
+  --purple: #7c3aed;
+  --purple-dim: #ede9fe;
+  --blue: #2563eb;
+  --blue-dim: #dbeafe;
+  --slate: #64748b;
+  --slate-dim: #f1f5f9;
+  --red: #dc2626;
+  
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
